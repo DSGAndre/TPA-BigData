@@ -13,6 +13,8 @@ install.packages("dplyr")
 install.packages("ggplot2")
 install.packages("tidyr")
 install.packages("stringr")
+install.packages("ROCR")
+
 #--------------------------------------#
 # ACTIVATION DES LIRAIRIES NECESSAIRES #
 #--------------------------------------#
@@ -25,6 +27,7 @@ library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(stringr)
+library(ROCR)
 
 #------------------------------------#
 # 1 Analyse exploratoire des données #
@@ -32,7 +35,15 @@ library(stringr)
 catalogue <- read.csv("Catalogue.csv", header = TRUE, sep = ";", dec = ".")
 immatriculations <- read.csv("Immatriculations.csv", header = TRUE, sep = ";", dec = ".")
 clients <- read.csv("Clients_0.csv", header = TRUE, sep = ";", dec = ".")
+
+#Nettoyage dataframe clients
 clients <- subset(clients, select = -id)
+clients <- subset(clients, taux !=-1 & age != -1 & situationFamiliale != "Undefined")
+clients$situationFamiliale = ifelse(clients$situationFamiliale == "Seule" | clients$situationFamiliale == "Seul" | clients$situationFamiliale == "Divorcée", "Célibataire", clients$situationFamiliale  )
+
+clients %>%
+  select(situationFamiliale) %>%
+  distinct
 
 sum(is.na(catalogue))
 sum(is.na(immatriculations))
@@ -45,7 +56,6 @@ str(clients)
 summary(catalogue)
 summary(immatriculations)
 summary(clients)
-
 
 # ----------------------PIE CHART AGE CLIENT---------------------------- #
 labels <- c(0, 40, 60, 80, 100)
@@ -73,6 +83,8 @@ lbls <- paste(lbls,"%",sep="") # ad % to labels
 pie(slices, labels = lbls, col=rainbow(length(lbls)),
     main="Pie Chart of Age client")
 
+
+clients <- subset(clients, select = -age_cut)
 # ----------------------------------------------------------------------- #
 
 
@@ -171,17 +183,19 @@ str(immatriculations)
 #Selection des colonnes de la table immatratriculation, utiles à la jointure : immatriculation et categorie
 immatriculations_join <- select(immatriculations, immatriculation, categorie)
 #Jointure des tables immatriculations_join et clients par la colonne commune immatriculation
-clients_categorie <- left_join(clients,immatriculations_join, by="immatriculation")
+clients_categorie <- inner_join(clients,immatriculations_join, by="immatriculation")
 str(clients_categorie$categorie)
-#O ligne selectionné car pas de voiture avec nbPlaces > 5 dans immatriculations filter(clients_categorie, categorie == "familiale")
+
+#O ligne selectionné car pas de voiture avec nbPlaces > 5 dans immatriculations 
+count(filter(clients_categorie, categorie == "familiale"))
 
 
 #-----------------------------------------------------------------------------------------------------#
 # 5 Création d'un modèle de classification supervisée pour la prédiction de la catégorie de véhicules #
 #-----------------------------------------------------------------------------------------------------#
 # Creation des ensembles d'apprentissage et de test
-clients_categorie_EA <- clients_categorie[1:500,]
-clients_categorie_ET <- clients_categorie[501:700,]
+clients_categorie_EA <- clients_categorie[1:25730,]
+clients_categorie_ET <- clients_categorie[25731:38596,]
 
 clients_categorie_EA <- subset(clients_categorie_EA, select = -immatriculation)
 clients_categorie_ET <- subset(clients_categorie_ET, select = -immatriculation)
@@ -218,8 +232,9 @@ test_rpart <- function(arg1, arg2, arg3, arg4){
   
   # Tests du classifieur : probabilites pour chaque prediction
   dt_prob <- predict(dt, clients_categorie_ET, type="prob")
-  
+  print(dt_prob)
   # Courbes ROC
+  
   dt_pred <- prediction(dt_prob[,2], clients_categorie_ET$categorie)
   dt_perf <- performance(dt_pred,"tpr","fpr")
   plot(dt_perf, main = "Arbres de decision rpart()", add = arg3, col = arg4)
@@ -227,10 +242,15 @@ test_rpart <- function(arg1, arg2, arg3, arg4){
   # Calcul de l'AUC et affichage par la fonction cat()
   dt_auc <- performance(dt_pred, "auc")
   cat("AUC = ", as.character(attr(dt_auc, "y.values")))
-  
   # Return sans affichage sur la console
   invisible()
 }
+
+# Arbres de decision
+test_rpart("gini", 10, FALSE, "red")
+test_rpart("gini", 5, TRUE, "blue")
+test_rpart("information", 10, TRUE, "green")
+test_rpart("information", 5, TRUE, "orange")
 
 #----------------#
 # RANDOM FORESTS #
@@ -263,6 +283,13 @@ test_rf <- function(arg1, arg2, arg3, arg4){
   invisible()
 }
 
+
+# Forets d'arbres decisionnels aleatoires
+test_rf(300, 3, FALSE, "red")
+test_rf(300, 5, TRUE, "blue")
+test_rf(500, 3, TRUE, "green")
+test_rf(500, 5, TRUE, "orange")
+
 #---------------------#
 # K-NEAREST NEIGHBORS #
 #---------------------#
@@ -292,24 +319,11 @@ test_knn <- function(arg1, arg2, arg3, arg4){
 # APPRENTISSAGE DES CONFIGURATIONS ALGORITHMIQUES #
 #-------------------------------------------------#
 
-# Arbres de decision
-test_rpart("gini", 10, FALSE, "red")
-test_rpart("gini", 5, TRUE, "blue")
-test_rpart("information", 10, TRUE, "green")
-test_rpart("information", 5, TRUE, "orange")
-
-# Forets d'arbres decisionnels aleatoires
-test_rf(300, 3, FALSE, "red")
-test_rf(300, 5, TRUE, "blue")
-test_rf(500, 3, TRUE, "green")
-test_rf(500, 5, TRUE, "orange")
-
 # K plus proches voisins
 test_knn(10, 1, FALSE, "red")
 test_knn(10, 2, TRUE, "blue")
 test_knn(20, 1, TRUE, "green")
 test_knn(20, 2, TRUE, "orange")
-
 
 
 #-------------------------------------------------------------#
