@@ -14,6 +14,8 @@ install.packages("ggplot2")
 install.packages("tidyr")
 install.packages("stringr")
 install.packages("ROCR")
+install.packages("pROC")
+
 
 #--------------------------------------#
 # ACTIVATION DES LIRAIRIES NECESSAIRES #
@@ -28,6 +30,7 @@ library(ggplot2)
 library(tidyr)
 library(stringr)
 library(ROCR)
+library(pROC)
 
 #------------------------------------#
 # 1 Analyse exploratoire des données #
@@ -223,25 +226,24 @@ print(mc_tree1)
 test_rpart <- function(arg1, arg2, arg3, arg4){
   # Apprentissage du classifeur
   dt <- rpart(categorie~., clients_categorie_EA, parms = list(split = arg1), control = rpart.control(minbucket = arg2))
-  
   # Tests du classifieur : classe predite
   dt_class <- predict(dt, clients_categorie_ET, type="class")
-  
   # Matrice de confusion
   print(table(clients_categorie_ET$categorie, dt_class))
-  
   # Tests du classifieur : probabilites pour chaque prediction
   dt_prob <- predict(dt, clients_categorie_ET, type="prob")
-  print(dt_prob)
   # Courbes ROC
-  
-  dt_pred <- prediction(dt_prob[,2], clients_categorie_ET$categorie)
-  dt_perf <- performance(dt_pred,"tpr","fpr")
-  plot(dt_perf, main = "Arbres de decision rpart()", add = arg3, col = arg4)
-  
+  roc.multi <- multiclass.roc(clients_categorie_ET$categorie, dt_prob, percent=TRUE)
+  #print(roc.multi)
+  rs <- roc.multi[['rocs']] 
+  plot.roc(rs[[2]]) 
+  sapply(2:length(rs),function(i) lines.roc(rs[[i]],col=i)) 
+  #dt_pred <- prediction(dt_prob[,2], clients_categorie_ET$categorie)
+  #dt_perf <- performance(dt_pred,"tpr","fpr")
+  #plot(dt_perf, main = "Arbres de decision rpart()", add = arg3, col = arg4)
   # Calcul de l'AUC et affichage par la fonction cat()
-  dt_auc <- performance(dt_pred, "auc")
-  cat("AUC = ", as.character(attr(dt_auc, "y.values")))
+  #dt_auc <- performance(dt_pred, "auc")
+  #cat("AUC = ", as.character(attr(dt_auc, "y.values")))
   # Return sans affichage sur la console
   invisible()
 }
@@ -258,6 +260,9 @@ test_rpart("information", 5, TRUE, "orange")
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
 test_rf <- function(arg1, arg2, arg3, arg4){
+
+  clients_categorie_EA$categorie <- factor(clients_categorie_EA$categorie)
+  
   # Apprentissage du classifeur
   rf <- randomForest(categorie~., clients_categorie_EA, ntree = arg1, mtry = arg2)
   
@@ -268,16 +273,28 @@ test_rf <- function(arg1, arg2, arg3, arg4){
   print(table(clients_categorie_ET$categorie, rf_class))
   
   # Test du classifeur : probabilites pour chaque prediction
-  rf_prob <- predict(rf, clients_categorie_ET, type="prob")
+  predictions <- as.data.frame(predict(rf, clients_categorie_ET, type="prob"))
+  predictions$predict <- names(predictions)[1:4][apply(predictions[,1:4], 1, which.max)] 
+  predictions$observed <- clients_categorie_ET$categorie
   
   # Courbe ROC
-  rf_pred <- prediction(rf_prob[,2], clients_categorie_ET$categorie)
-  rf_perf <- performance(rf_pred,"tpr","fpr")
-  plot(rf_perf, main = "Random Forests randomForest()", add = arg3, col = arg4)
+  roc.berline <- roc(ifelse(predictions$observed=="berline", "berline", "non-berline"), as.numeric(predictions$berline)) 
+  roc.citadine <- roc(ifelse(predictions$observed=="citadine", "citadine", "non-citadine"), as.numeric(predictions$citadine)) 
+  roc.compacte <- roc(ifelse(predictions$observed=="compacte", "compacte", "non-compacte"), as.numeric(predictions$compacte)) 
+  roc.sportive <- roc(ifelse(predictions$observed=="sportive", "sportive", "non-sportive"), as.numeric(predictions$sportive)) 
+  plot(roc.berline, col = "orange") 
+  lines(roc.compacte, col = "red") 
+  lines(roc.sportive, col = "green") 
+  lines(roc.citadine, col = "blue") 
+  
+  
+  #rf_pred <- prediction(rf_prob[,2], clients_categorie_ET$categorie)
+  #rf_perf <- performance(rf_pred,"tpr","fpr")
+  #plot(rf_perf, main = "Random Forests randomForest()", add = arg3, col = arg4)
   
   # Calcul de l'AUC et affichage par la fonction cat()
-  rf_auc <- performance(rf_pred, "auc")
-  cat("AUC = ", as.character(attr(rf_auc, "y.values")))
+  #rf_auc <- performance(rf_pred, "auc")
+  #cat("AUC = ", as.character(attr(rf_auc, "y.values")))
   
   # Return sans affichage sur la console
   invisible()
@@ -297,19 +314,22 @@ test_rf(500, 5, TRUE, "orange")
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
 test_knn <- function(arg1, arg2, arg3, arg4){
   # Apprentissage et test simultanes du classifeur de type k-nearest neighbors
+  
   knn <- kknn(categorie~., clients_categorie_EA, clients_categorie_ET, k = arg1, distance = arg2)
+  
+  if(knn$response!="continuous")print(data.frame(fit=knn$fitted.value,prob=knn$prob),digits)
   
   # Matrice de confusion
   print(table(clients_categorie_ET$categorie, knn$fitted.values))
   
   # Courbe ROC
-  knn_pred <- prediction(knn$prob[,2], clients_categorie_ET$categorie)
-  knn_perf <- performance(knn_pred,"tpr","fpr")
-  plot(knn_perf, main = "Classifeurs K-plus-proches-voisins kknn()", add = arg3, col = arg4)
+  #knn_pred <- prediction(knn$prob[,2], clients_categorie_ET$categorie)
+  #knn_perf <- performance(knn_pred,"tpr","fpr")
+  #plot(knn_perf, main = "Classifeurs K-plus-proches-voisins kknn()", add = arg3, col = arg4)
   
   # Calcul de l'AUC et affichage par la fonction cat()
-  knn_auc <- performance(knn_pred, "auc")
-  cat("AUC = ", as.character(attr(knn_auc, "y.values")))
+  #knn_auc <- performance(knn_pred, "auc")
+  #cat("AUC = ", as.character(attr(knn_auc, "y.values")))
   
   # Return sans affichage sur la console
   invisible()
