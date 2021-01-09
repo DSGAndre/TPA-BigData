@@ -3,7 +3,9 @@
 #https://jsfiddle.net/amenin/qscraok2/1/
 
 
-setwd("D:/Documents/MIAGE/M2/TPA_BIGDATA/Groupe_TPT_1/data")
+#Onglet Session -> Set working directory -> To source file location
+setwd("../data")
+getwd()
 
 install.packages('tidyverse')
 install.packages("scales")
@@ -30,11 +32,24 @@ marketing <- read.csv("Marketing.csv", header = TRUE, sep = ",", dec = ".")
 
 
 #Premier traitement
+clients_0 = clients_0[,-1]
+clientsDirty <- rbind(clients_0,clients_8)
+
 str(clients_0)
 clients_0$taux <- as.numeric(as.character(clients_0$taux))
 clients_0 <- clients_0 %>% filter(age >= 18 & age <= 84) %>%
   filter(nbEnfantsAcharge >= 0 &nbEnfantsAcharge <= 4) %>%
   filter(taux >= 544 & taux <= 74185)
+
+
+str(clients_8)
+clients_8$taux <- as.numeric(as.character(clients_8$taux))
+clients_8 <- clients_8 %>% filter(age >= 18 & age <= 84) %>%
+  filter(nbEnfantsAcharge >= 0 &nbEnfantsAcharge <= 4) %>%
+  filter(taux >= 544 & taux <= 74185)
+
+clientsCleaned <- rbind(clients_0,clients_8)
+
 
 ##Immatriculations
 immatriculations = immatriculations[,-1]
@@ -54,13 +69,28 @@ imma_diffPrix <- imma_diffPrix %>% arrange(desc(Freq))
 imma_diffPrix <- imma_diffPrix[0:10,]
 
 
+##
+immaGroup <- immatriculations %>% 
+  select(puissance, prix, marque, nom) %>% 
+  mutate(number = 1) %>%
+  group_by(puissance, prix, marque, nom) %>%
+  summarise(number = sum(number))
+
+immaGroupTest <- immatriculations %>% 
+  select( marque) %>% 
+  group_by(marque) %>%
+  summarise()
+
+
+
+
 ##Clients
 ## join client et immatriculations
 
-client_join <- clients_0 %>% left_join(immatriculations, by=c("immatriculation"="immatriculation"))
+client_join_Cleaned <- clientsCleaned %>% inner_join(immatriculations, by=c("immatriculation"="immatriculation"))
+client_join_Dirty <- clientsDirty %>% left_join(immatriculations, by=c("immatriculation"="immatriculation"))
 
-
-client_groupBy <- client_join %>% mutate(number = 1) %>% group_by(age, nbEnfantsAcharge) %>% 
+client_groupBy <- client_join_Cleaned %>% mutate(number = 1) %>% group_by(age, nbEnfantsAcharge) %>% 
   summarise(number = sum(number), prix = sum(prix))  %>% 
   mutate(price_average = prix/number)
 
@@ -68,9 +98,10 @@ client_groupBy <- client_join %>% mutate(number = 1) %>% group_by(age, nbEnfants
 
 ##JSON LITE
 
-write_json(clients_0, "data_client.json")
+write_json(clients, "data_client.json")
 write_json(client_groupBy, "data_client_groupby.json")
 write_json(imma_diffMarque, "data_marquevendu.json")
+write_json(immaGroup, "imma_groupby.json")
 
 
 
