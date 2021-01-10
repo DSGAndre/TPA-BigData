@@ -61,7 +61,7 @@ summary(immatriculations)
 summary(clients)
 
 # ----------------------PIE CHART AGE CLIENT---------------------------- #
-labels <- c(0, 40, 60, 80, 100)
+labels <- c(18, 40, 60, 80, 100)
 clients$age_cut <- cut(clients$age, labels)
 
 #Suppression des valeurs manquantes pour la variable age
@@ -72,14 +72,14 @@ completeFun <- function(data, desiredCols) {
 clients_pie <- completeFun(clients, "age_cut")
 
 
-nb1 <- count(filter(clients_pie, age_cut == "(0,40]"))
+nb1 <- count(filter(clients_pie, age_cut == "(18,40]"))
 nb2 <- count(filter(clients_pie, age_cut == "(40,60]"))
 nb3 <- count(filter(clients_pie, age_cut == "(60,80]"))
 nb4 <- count(filter(clients_pie, age_cut == "(80,100]"))
 
 slices <- c(as.numeric(nb1), as.numeric(nb2), as.numeric(nb3), as.numeric(nb4))
 str(slices)
-lbls <- c("0 et 40 ans : ", "40 et 60 ans : ", "60 et 80 ans : ", "80 et 100 ans : ")
+lbls <- c("18 et 40 ans : ", "40 et 60 ans : ", "60 et 80 ans : ", "80 et 100 ans : ")
 pct <- round(slices/sum(slices)*100)
 lbls <- paste(lbls, pct) # add percents to labels
 lbls <- paste(lbls,"%",sep="") # ad % to labels
@@ -258,9 +258,24 @@ test_rpart("information", 5, TRUE, "orange")
 # RANDOM FORESTS #
 #----------------#
 
+categorie_auc <- function(arg1, arg2, arg3) {
+  col1 <- arg3[arg1]
+  col2 <- 1 - as.numeric(arg1)
+  probauc <- data.frame(col1, col2)
+
+  categorie <- ifelse(arg3$observed == arg1, arg1, arg2)
+  dataauc <- data.frame(categorie)
+  
+  rf_pred <- prediction(probauc[,1], dataauc$categorie)
+  rf_auc <- performance(rf_pred, "auc")
+  cat(paste("\n AUC", arg1, " = "), as.character(attr(rf_auc, "y.values")))
+  
+  invisible()
+}  
+
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
 test_rf <- function(arg1, arg2, arg3, arg4){
-
+  
   clients_categorie_EA$categorie <- factor(clients_categorie_EA$categorie)
   
   # Apprentissage du classifeur
@@ -287,15 +302,12 @@ test_rf <- function(arg1, arg2, arg3, arg4){
   lines(roc.sportive, col = "green") 
   lines(roc.citadine, col = "blue") 
   
-  
-  #rf_pred <- prediction(rf_prob[,2], clients_categorie_ET$categorie)
-  #rf_perf <- performance(rf_pred,"tpr","fpr")
-  #plot(rf_perf, main = "Random Forests randomForest()", add = arg3, col = arg4)
-  
   # Calcul de l'AUC et affichage par la fonction cat()
-  #rf_auc <- performance(rf_pred, "auc")
-  #cat("AUC = ", as.character(attr(rf_auc, "y.values")))
-  
+  categorie_auc("berline", "nonberline", predictions)
+  categorie_auc("citadine", "noncitadine", predictions)
+  categorie_auc("compacte", "noncompacte", predictions)
+  categorie_auc("sportive", "nonsportive", predictions)
+
   # Return sans affichage sur la console
   invisible()
 }
