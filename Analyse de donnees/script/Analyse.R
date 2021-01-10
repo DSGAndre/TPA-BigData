@@ -15,6 +15,8 @@ install.packages("tidyr")
 install.packages("stringr")
 install.packages("ROCR")
 install.packages("pROC")
+installed.packages("nnet")
+install.packages("naivebayes")
 
 
 #--------------------------------------#
@@ -31,6 +33,8 @@ library(tidyr)
 library(stringr)
 library(ROCR)
 library(pROC)
+library(nnet)
+library(naivebayes)
 
 #------------------------------------#
 # 1 Analyse exploratoire des données #
@@ -41,7 +45,13 @@ clients <- read.csv("Clients_0.csv", header = TRUE, sep = ";", dec = ".")
 
 #Nettoyage dataframe clients
 clients <- subset(clients, select = -id)
-clients <- subset(clients, taux !=-1 & age != -1 & situationFamiliale != "Undefined")
+clients <- subset(clients, taux !=-1 &
+                    nbEnfantsAcharge != -1 &
+                    age != -1 &
+                    sexe != "Undefined" &
+                    X2eme.voiture != "Undefined" &
+                    situationFamiliale != "Undefined"
+                  )
 clients$situationFamiliale = ifelse(clients$situationFamiliale == "Seule" | clients$situationFamiliale == "Seul" | clients$situationFamiliale == "Divorcée", "Célibataire", clients$situationFamiliale  )
 
 clients %>%
@@ -61,7 +71,7 @@ summary(immatriculations)
 summary(clients)
 
 # ----------------------PIE CHART AGE CLIENT---------------------------- #
-labels <- c(0, 40, 60, 80, 100)
+labels <- c(18, 40, 60, 80, 100)
 clients$age_cut <- cut(clients$age, labels)
 
 #Suppression des valeurs manquantes pour la variable age
@@ -72,14 +82,14 @@ completeFun <- function(data, desiredCols) {
 clients_pie <- completeFun(clients, "age_cut")
 
 
-nb1 <- count(filter(clients_pie, age_cut == "(0,40]"))
+nb1 <- count(filter(clients_pie, age_cut == "(18,40]"))
 nb2 <- count(filter(clients_pie, age_cut == "(40,60]"))
 nb3 <- count(filter(clients_pie, age_cut == "(60,80]"))
 nb4 <- count(filter(clients_pie, age_cut == "(80,100]"))
 
 slices <- c(as.numeric(nb1), as.numeric(nb2), as.numeric(nb3), as.numeric(nb4))
 str(slices)
-lbls <- c("0 et 40 ans : ", "40 et 60 ans : ", "60 et 80 ans : ", "80 et 100 ans : ")
+lbls <- c("18 et 40 ans : ", "40 et 60 ans : ", "60 et 80 ans : ", "80 et 100 ans : ")
 pct <- round(slices/sum(slices)*100)
 lbls <- paste(lbls, pct) # add percents to labels
 lbls <- paste(lbls,"%",sep="") # ad % to labels
@@ -197,8 +207,8 @@ count(filter(clients_categorie, categorie == "familiale"))
 # 5 Création d'un modèle de classification supervisée pour la prédiction de la catégorie de véhicules #
 #-----------------------------------------------------------------------------------------------------#
 # Creation des ensembles d'apprentissage et de test
-clients_categorie_EA <- clients_categorie[1:25730,]
-clients_categorie_ET <- clients_categorie[25731:38596,]
+clients_categorie_EA <- clients_categorie[1:25519,]
+clients_categorie_ET <- clients_categorie[25520:38278,]
 
 clients_categorie_EA <- subset(clients_categorie_EA, select = -immatriculation)
 clients_categorie_ET <- subset(clients_categorie_ET, select = -immatriculation)
@@ -217,50 +227,81 @@ table(test_tree1)
 mc_tree1 <- table(clients_categorie_ET$categorie, test_tree1)
 print(mc_tree1)
 
+#----------------------#
+# FONCTION CALCUL AUC  #
+#----------------------#
+calcul_auc <- function(arg1, arg2, arg3) {
+  col1 <- arg3[arg1]
+  col2 <- 1 - col1
+  prob_auc <- data.frame(col1, col2)
+  
+  categorie <- ifelse(arg3$observed == arg1, arg1, arg2)
+  data_auc <- data.frame(categorie)
+  
+  rf_pred <- prediction(prob_auc[,2], data_auc$categorie)
+  rf_auc <- performance(rf_pred, "auc")
+  cat(paste("\n ------------", arg1, "---------------- \n"))
+  cat(paste("AUC", arg1, " = "), as.character(attr(rf_auc, "y.values")))
+  cat("\n -------------------------------------- \n")
+  invisible()
+}  
+
 
 #-------------------------#
 # ARBRE DE DECISION RPART #
 #-------------------------#
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
-test_rpart <- function(arg1, arg2, arg3, arg4){
+test_rpart <- function(arg1, arg2){
   # Apprentissage du classifeur
   dt <- rpart(categorie~., clients_categorie_EA, parms = list(split = arg1), control = rpart.control(minbucket = arg2))
   # Tests du classifieur : classe predite
   dt_class <- predict(dt, clients_categorie_ET, type="class")
   # Matrice de confusion
   print(table(clients_categorie_ET$categorie, dt_class))
-  # Tests du classifieur : probabilites pour chaque prediction
-  dt_prob <- predict(dt, clients_categorie_ET, type="prob")
-  # Courbes ROC
-  roc.multi <- multiclass.roc(clients_categorie_ET$categorie, dt_prob, percent=TRUE)
-  #print(roc.multi)
-  rs <- roc.multi[['rocs']] 
-  plot.roc(rs[[2]]) 
-  sapply(2:length(rs),function(i) lines.roc(rs[[i]],col=i)) 
-  #dt_pred <- prediction(dt_prob[,2], clients_categorie_ET$categorie)
-  #dt_perf <- performance(dt_pred,"tpr","fpr")
-  #plot(dt_perf, main = "Arbres de decision rpart()", add = arg3, col = arg4)
+  
+  # Test du classifeur : probabilites pour chaque prediction
+  predictions <- as.data.frame(predict(dt, clients_categorie_ET, type="prob"))
+  predictions$predict <- names(predictions)[1:4][apply(predictions[,1:4], 1, which.max)] 
+  predictions$observed <- clients_categorie_ET$categorie
+  
+  # Courbe ROC
+  roc.berline <- roc(ifelse(predictions$observed=="berline", "berline", "non-berline"), as.numeric(predictions$berline)) 
+  roc.citadine <- roc(ifelse(predictions$observed=="citadine", "citadine", "non-citadine"), as.numeric(predictions$citadine)) 
+  roc.compacte <- roc(ifelse(predictions$observed=="compacte", "compacte", "non-compacte"), as.numeric(predictions$compacte)) 
+  roc.sportive <- roc(ifelse(predictions$observed=="sportive", "sportive", "non-sportive"), as.numeric(predictions$sportive)) 
+  plot(roc.berline, col = "orange", main = paste("Classifeurs Arbre de décision (split : ", arg1, ", minbucket : ", arg2, ")"))
+  lines(roc.compacte, col = "red") 
+  lines(roc.sportive, col = "green") 
+  lines(roc.citadine, col = "blue") 
+  
+  legend(0.3, 0.4, legend=c("berline", "compacte", "sportive", "citadine"),
+         col=c("orange", "red", "green", "blue"), lty=1:2, cex=0.8)
+  
   # Calcul de l'AUC et affichage par la fonction cat()
-  #dt_auc <- performance(dt_pred, "auc")
-  #cat("AUC = ", as.character(attr(dt_auc, "y.values")))
+  calcul_auc("berline", "nonberline", predictions)
+  calcul_auc("citadine", "noncitadine", predictions)
+  calcul_auc("compacte", "noncompacte", predictions)
+  calcul_auc("sportive", "nonsportive", predictions)
+  
   # Return sans affichage sur la console
   invisible()
+
 }
 
 # Arbres de decision
-test_rpart("gini", 10, FALSE, "red")
-test_rpart("gini", 5, TRUE, "blue")
-test_rpart("information", 10, TRUE, "green")
-test_rpart("information", 5, TRUE, "orange")
+test_rpart("gini", 10)
+test_rpart("gini", 5)
+test_rpart("information", 10)
+test_rpart("information", 5)
 
 #----------------#
 # RANDOM FORESTS #
 #----------------#
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
-test_rf <- function(arg1, arg2, arg3, arg4){
-
+test_rf <- function(arg1, arg2){
+  
   clients_categorie_EA$categorie <- factor(clients_categorie_EA$categorie)
   
   # Apprentissage du classifeur
@@ -282,42 +323,95 @@ test_rf <- function(arg1, arg2, arg3, arg4){
   roc.citadine <- roc(ifelse(predictions$observed=="citadine", "citadine", "non-citadine"), as.numeric(predictions$citadine)) 
   roc.compacte <- roc(ifelse(predictions$observed=="compacte", "compacte", "non-compacte"), as.numeric(predictions$compacte)) 
   roc.sportive <- roc(ifelse(predictions$observed=="sportive", "sportive", "non-sportive"), as.numeric(predictions$sportive)) 
-  plot(roc.berline, col = "orange") 
+  plot(roc.berline, col = "orange", main = paste("Classifeurs Random Forest (ntree : ", arg1, ", mtry : ", arg2, ")"))
   lines(roc.compacte, col = "red") 
   lines(roc.sportive, col = "green") 
   lines(roc.citadine, col = "blue") 
   
-  
-  #rf_pred <- prediction(rf_prob[,2], clients_categorie_ET$categorie)
-  #rf_perf <- performance(rf_pred,"tpr","fpr")
-  #plot(rf_perf, main = "Random Forests randomForest()", add = arg3, col = arg4)
+  legend(0.3, 0.4, legend=c("berline", "compacte", "sportive", "citadine"),
+         col=c("orange", "red", "green", "blue"), lty=1:2, cex=0.8)
   
   # Calcul de l'AUC et affichage par la fonction cat()
-  #rf_auc <- performance(rf_pred, "auc")
-  #cat("AUC = ", as.character(attr(rf_auc, "y.values")))
-  
+  calcul_auc("berline", "nonberline", predictions)
+  calcul_auc("citadine", "noncitadine", predictions)
+  calcul_auc("compacte", "noncompacte", predictions)
+  calcul_auc("sportive", "nonsportive", predictions)
+
   # Return sans affichage sur la console
   invisible()
 }
 
-
 # Forets d'arbres decisionnels aleatoires
-test_rf(300, 3, FALSE, "red")
-test_rf(300, 5, TRUE, "blue")
-test_rf(500, 3, TRUE, "green")
-test_rf(500, 5, TRUE, "orange")
+test_rf(300, 3)
+test_rf(300, 5)
+test_rf(500, 3)
+test_rf(500, 5)
+
+
+
+#-------------#
+# NAIVE BAYES #
+#-------------#
+
+# Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
+test_nb <- function(arg1, arg2){
+  # Apprentissage du classifeur 
+  nb <- naive_bayes(categorie~., clients_categorie_EA, laplace = arg1, usekernel = arg2)
+  
+  # Test du classifeur : classe predite
+  nb_class <- predict(nb, clients_categorie_ET, type="class")
+  
+  # Matrice de confusion
+  print(table(clients_categorie_ET$categorie, nb_class))
+  
+  # Test du classifeur : probabilites pour chaque prediction
+  predictions <- as.data.frame(predict(nb, clients_categorie_ET, type="prob"))
+  predictions$predict <- names(predictions)[1:4][apply(predictions[,1:4], 1, which.max)] 
+  predictions$observed <- clients_categorie_ET$categorie
+  
+  # Courbe ROC
+  roc.berline <- roc(ifelse(predictions$observed=="berline", "berline", "non-berline"), as.numeric(predictions$berline)) 
+  roc.citadine <- roc(ifelse(predictions$observed=="citadine", "citadine", "non-citadine"), as.numeric(predictions$citadine)) 
+  roc.compacte <- roc(ifelse(predictions$observed=="compacte", "compacte", "non-compacte"), as.numeric(predictions$compacte)) 
+  roc.sportive <- roc(ifelse(predictions$observed=="sportive", "sportive", "non-sportive"), as.numeric(predictions$sportive)) 
+  plot(roc.berline, col = "orange", main = paste("Classifieurs bayesiens naiveBayes( (laplace : ", arg1, ", usekernel : ", arg2, ")"))
+  lines(roc.compacte, col = "red") 
+  lines(roc.sportive, col = "green") 
+  lines(roc.citadine, col = "blue") 
+  
+  legend(0.3, 0.4, legend=c("berline", "compacte", "sportive", "citadine"),
+         col=c("orange", "red", "green", "blue"), lty=1:2, cex=0.8)
+  
+  # Calcul de l'AUC et affichage par la fonction cat()
+  calcul_auc("berline", "nonberline", predictions)
+  calcul_auc("citadine", "noncitadine", predictions)
+  calcul_auc("compacte", "noncompacte", predictions)
+  calcul_auc("sportive", "nonsportive", predictions)
+  
+  # Return sans affichage sur la console
+  invisible()
+  
+}
+
+# Naive Bayes
+test_nb(0, FALSE)
+test_nb(20, FALSE)
+test_nb(0, TRUE)
+test_nb(20, TRUE)
 
 #---------------------#
 # K-NEAREST NEIGHBORS #
 #---------------------#
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
-test_knn <- function(arg1, arg2, arg3, arg4){
+test_knn <- function(arg1, arg2){
   # Apprentissage et test simultanes du classifeur de type k-nearest neighbors
   
-  knn <- kknn(categorie~., clients_categorie_EA, clients_categorie_ET, k = arg1, distance = arg2)
+  knn <-kknn(categorie~., clients_categorie_EA, clients_categorie_ET, k = arg1, distance = arg2)
   
-  if(knn$response!="continuous")print(data.frame(fit=knn$fitted.value,prob=knn$prob),digits)
+  #if(knn$response != "continuous") {
+  #  print(data.frame(fit=knn$fitted.value,prob=knn$prob),digits)
+  #}
   
   # Matrice de confusion
   print(table(clients_categorie_ET$categorie, knn$fitted.values))
@@ -340,11 +434,48 @@ test_knn <- function(arg1, arg2, arg3, arg4){
 #-------------------------------------------------#
 
 # K plus proches voisins
-test_knn(10, 1, FALSE, "red")
-test_knn(10, 2, TRUE, "blue")
-test_knn(20, 1, TRUE, "green")
-test_knn(20, 2, TRUE, "orange")
+test_knn(10, 1)
+test_knn(10, 2)
+test_knn(20, 1)
+test_knn(20, 2)
 
+
+#-----------------#
+# NEURAL NETWORKS #
+#-----------------#
+
+# Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
+test_nnet <- function(arg1, arg2, arg3){
+  # Redirection de l'affichage des messages interm???diaires vers un fichier texte
+  sink('output.txt', append=T)
+  
+  # Apprentissage du classifeur 
+  nn <- nnet(categorie~., clients_categorie_EA, size = arg1, decay = arg2, maxit=arg3)
+  
+  # R???autoriser l'affichage des messages interm???diaires
+  sink(file = NULL)
+  
+  # Test du classifeur : classe predite
+  nn_class <- predict(nn, clients_categorie_ET, type="class")
+  
+  # Matrice de confusion
+  print(table(clients_categorie_ET$categorie, nn_class))
+  
+  # Test des classifeurs : probabilites pour chaque prediction
+  nn_prob <- predict(nn, clients_categorie_ET, type="raw")
+  
+  # Courbe ROC 
+  nn_pred <- prediction(nn_prob[,1], produit_QF_ET$Produit)
+  nn_perf <- performance(nn_pred,"tpr","fpr")
+  plot(nn_perf, main = "R???seaux de neurones nnet()", add = arg4, col = arg5)
+  
+  # Calcul de l'AUC
+  nn_auc <- performance(nn_pred, "auc")
+  cat("AUC = ", as.character(attr(nn_auc, "y.values")))
+}
+  
+test_nnet(50, 0.01, 100)
+test_nnet(50, 0.01, 300)
 
 #-------------------------------------------------------------#
 # 6 Application du modèle de prédiction aux données Marketing #
