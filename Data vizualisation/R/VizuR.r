@@ -32,29 +32,51 @@ marketing <- read.csv("Marketing.csv", header = TRUE, sep = ",", dec = ".")
 
 
 #Premier traitement
-clients_0 = clients_0[,-1]
-clientsDirty <- rbind(clients_0,clients_8)
+#clients_0 = clients_0[,-1]
+clients_0$id <- NULL
+#clientsDirty <- rbind(clients_0,clients_8)
 
 str(clients_0)
 clients_0$taux <- as.numeric(as.character(clients_0$taux))
+clients_0$situationFamiliale[clients_0$situationFamiliale == "CÃ©libataire"] <- "Célibataire"
+clients_0$situationFamiliale[clients_0$situationFamiliale == "MariÃ©(e)"] <- "Marié(e)"
 clients_0 <- clients_0 %>% filter(age >= 18 & age <= 84) %>%
   filter(nbEnfantsAcharge >= 0 &nbEnfantsAcharge <= 4) %>%
-  filter(taux >= 544 & taux <= 74185)
+  filter(taux >= 544 & taux <= 74185) %>%
+  filter(sexe == "F" | sexe == "M") %>%
+  filter(situationFamiliale == "Célibataire" | situationFamiliale == "Divorcée" | situationFamiliale == "En Couple" | situationFamiliale == "Marié(e)" | situationFamiliale == "Seul" | situationFamiliale == "Seule")
 
 
-str(clients_8)
+
+
+#str(clients_8)
 clients_8$taux <- as.numeric(as.character(clients_8$taux))
+clients_8$situationFamiliale[clients_8$situationFamiliale == "CÃ©libataire"] <- "Célibataire"
+clients_8$situationFamiliale[clients_8$situationFamiliale == "MariÃ©(e)"] <- "Marié(e)"
 clients_8 <- clients_8 %>% filter(age >= 18 & age <= 84) %>%
   filter(nbEnfantsAcharge >= 0 &nbEnfantsAcharge <= 4) %>%
-  filter(taux >= 544 & taux <= 74185)
+  filter(taux >= 544 & taux <= 74185) %>%
+  filter(sexe == "F" | sexe == "M") %>%
+  filter(situationFamiliale == "Célibataire" | situationFamiliale == "Divorcée" | situationFamiliale == "En Couple" | situationFamiliale == "Marié(e)" | situationFamiliale == "Seul" | situationFamiliale == "Seule")
+
+
 
 clientsCleaned <- rbind(clients_0,clients_8)
 
 
-##Immatriculations
-immatriculations = immatriculations[,-1]
-str(immatriculations)
+immatriculationsCleaned <- immatriculations %>% filter(puissance >= 55 & puissance <= 507) %>%
+  filter(nbPlaces >= 5 & nbPlaces <= 7) %>%
+  filter(nbPortes >= 3 & nbPortes <= 5) %>%
+  filter(prix >= 7500 & prix <= 101300)
 
+
+##Immatriculations
+#immatriculationsTest = immatriculations[,-1]
+#str(immatriculations)
+
+
+####
+##Voiture plus et moins vendu
 imma_diffMarque <- as.data.frame(table(immatriculations$marque))
 imma_diffMarque <- imma_diffMarque %>% arrange(Freq)
 imma_diffMarqueMoinsVendu <- imma_diffMarque[0:10,]
@@ -64,45 +86,54 @@ imma_diffMarque$Var1 <- factor(imma_diffMarque$Var1, level = imma_diffMarque$Var
 imma_diffMarqueMoinsVendu$Var1 <- factor(imma_diffMarqueMoinsVendu$Var1, level = imma_diffMarqueMoinsVendu$Var1)
 str(imma_diffMarque)
 
-imma_diffPrix <- as.data.frame(table(immatriculations$prix))
+imma_diffPrix <- as.data.frame(table(immatriculations$prix ))
 imma_diffPrix <- imma_diffPrix %>% arrange(desc(Freq))
 imma_diffPrix <- imma_diffPrix[0:10,]
-
-
 ##
+
+##Group immatriculations
 immaGroup <- immatriculations %>% 
   select(puissance, prix, marque, nom) %>% 
   mutate(number = 1) %>%
   group_by(puissance, prix, marque, nom) %>%
   summarise(number = sum(number))
 
-immaGroupTest <- immatriculations %>% 
-  select( marque) %>% 
-  group_by(marque) %>%
-  summarise()
+##
+####
 
 
-
-
+####
 ##Clients
 ## join client et immatriculations
 
-client_join_Cleaned <- clientsCleaned %>% inner_join(immatriculations, by=c("immatriculation"="immatriculation"))
-client_join_Dirty <- clientsDirty %>% left_join(immatriculations, by=c("immatriculation"="immatriculation"))
+client_join_Cleaned <- clientsCleaned %>% inner_join(immatriculationsCleaned, by=c("immatriculation"="immatriculation"))
+#client_join_Dirty <- clientsDirty %>% left_join(immatriculations, by=c("immatriculation"="immatriculation"))
 
 client_groupBy <- client_join_Cleaned %>% mutate(number = 1) %>% group_by(age, nbEnfantsAcharge) %>% 
   summarise(number = sum(number), prix = sum(prix))  %>% 
   mutate(price_average = prix/number)
 
+client_join_Cleaned_group <- client_join_Cleaned %>% group_by(age, situationFamiliale, nbEnfantsAcharge, marque, puissance, longueur, nbPlaces, nbPortes, couleur, prix) %>% 
+  summarise() 
+
+#Melanger et prendre seulement N lignes
+client_join_Cleaned_group_shuffle <- client_join_Cleaned_group[sample(nrow(client_join_Cleaned_group)),]
+client_join_Cleaned_group_shuffle <- client_join_Cleaned_group_shuffle[0:4000,]
+##
+####
 
 
+####
 ##JSON LITE
 
 write_json(clients, "data_client.json")
 write_json(client_groupBy, "data_client_groupby.json")
 write_json(imma_diffMarque, "data_marquevendu.json")
 write_json(immaGroup, "imma_groupby.json")
-
+write_json(client_join_Cleaned_group, "client_join_Cleaned_group.json")
+write_json(client_join_Cleaned_group_shuffle, "client_join_Cleaned_group_shuffle.json")
+##
+####
 
 
 
