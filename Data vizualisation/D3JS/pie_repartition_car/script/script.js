@@ -1,6 +1,4 @@
-window.onload = () => {
-    var dataclient = [{ "Var1": "BMW", "Freq": 294455, "displayed": true }, { "Var1": "Audi", "Freq": 291922, "displayed": true }, { "Var1": "Renault", "Freq": 251612, "displayed": true }, { "Var1": "Jaguar", "Freq": 189012, "displayed": true }, { "Var1": "Volkswagen", "Freq": 155974, "displayed": true }, { "Var1": "Mercedes", "Freq": 150183, "displayed": true }, { "Var1": "Volvo", "Freq": 123848, "displayed": true }, { "Var1": "Peugeot", "Freq": 96186, "displayed": true }, { "Var1": "Saab", "Freq": 84536, "displayed": true }, { "Var1": "Fiat", "Freq": 76609, "displayed": true }]
-
+d3.json("data.json", function (error, dataclient) {
 
     var svg = d3.select("body")
         .append("svg")
@@ -180,11 +178,11 @@ window.onload = () => {
             .remove();
 
         /* --------- EXPLICATION ----------*/
-        let max = {Freq:0,Var1:""};
+        let max = { Freq: 0, Var1: "" };
         dataclient.forEach(element => {
-            if(element.Freq > max.Freq)
+            if (element.Freq > max.Freq)
                 max = element;
         })
         explication.html(max.Var1 + " est la marque la plus vendue avec " + max.Freq + " ventes.")
     };
-}
+})
