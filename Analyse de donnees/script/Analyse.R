@@ -41,7 +41,7 @@ library(naivebayes)
 #------------------------------------#
 catalogue <- read.csv("Catalogue.csv", header = TRUE, sep = ";", dec = ".")
 immatriculations <- read.csv("Immatriculations.csv", header = TRUE, sep = ";", dec = ".")
-clients <- read.csv("Clients_0.csv", header = TRUE, sep = ";", dec = ".")
+clients <- read.csv("Clients_0.csv", header = TRUE, sep = ";", dec = ".", stringsAsFactors = T)
 
 #Nettoyage dataframe clients
 clients <- subset(clients, select = -id)
@@ -213,20 +213,6 @@ clients_categorie_ET <- clients_categorie[25520:38278,]
 clients_categorie_EA <- subset(clients_categorie_EA, select = -immatriculation)
 clients_categorie_ET <- subset(clients_categorie_ET, select = -immatriculation)
 
-#-------------------------#
-# ARBRE DE DECISION RPART #
-#-------------------------#
-
-tree1 <- rpart(categorie ~ ., clients_categorie_EA)
-plot(tree1) 
-text(tree1, pretty=0)
-test_tree1 <- predict(tree1, clients_categorie_ET, type="class")
-table(test_tree1)
-#immatriculations$categorie <- test_tree1
-
-mc_tree1 <- table(clients_categorie_ET$categorie, test_tree1)
-print(mc_tree1)
-
 #----------------------#
 # FONCTION CALCUL AUC  #
 #----------------------#
@@ -253,11 +239,14 @@ calcul_auc <- function(arg1, arg2, arg3) {
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
 test_rpart <- function(arg1, arg2){
+  cat(paste("\n------ARBRE DE DECISION RPART (split=", arg1, ") et (minbucket =", arg2, ")------"))
   # Apprentissage du classifeur
   dt <- rpart(categorie~., clients_categorie_EA, parms = list(split = arg1), control = rpart.control(minbucket = arg2))
   # Tests du classifieur : classe predite
   dt_class <- predict(dt, clients_categorie_ET, type="class")
+  
   # Matrice de confusion
+  cat("\n\nMatrice de confusion :\n")
   print(table(clients_categorie_ET$categorie, dt_class))
   
   # Test du classifeur : probabilites pour chaque prediction
@@ -301,7 +290,7 @@ test_rpart("information", 5)
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
 test_rf <- function(arg1, arg2){
-  
+  cat(paste("\n------RANDOM FORESTS (ntree=", arg1, ") et (mtry =", arg2, ")------"))
   clients_categorie_EA$categorie <- factor(clients_categorie_EA$categorie)
   
   # Apprentissage du classifeur
@@ -311,6 +300,7 @@ test_rf <- function(arg1, arg2){
   rf_class <- predict(rf,clients_categorie_ET, type="response")
   
   # Matrice de confusion
+  cat("\n\nMatrice de confusion :\n")
   print(table(clients_categorie_ET$categorie, rf_class))
   
   # Test du classifeur : probabilites pour chaque prediction
@@ -355,6 +345,7 @@ test_rf(500, 5)
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
 test_nb <- function(arg1, arg2){
+  cat(paste("\n------NAIVE BAYES (laplace=", arg1, ") et (usekernel =", arg2, ")------"))
   # Apprentissage du classifeur 
   nb <- naive_bayes(categorie~., clients_categorie_EA, laplace = arg1, usekernel = arg2)
   
@@ -362,6 +353,7 @@ test_nb <- function(arg1, arg2){
   nb_class <- predict(nb, clients_categorie_ET, type="class")
   
   # Matrice de confusion
+  cat("\n\nMatrice de confusion :\n")
   print(table(clients_categorie_ET$categorie, nb_class))
   
   # Test du classifeur : probabilites pour chaque prediction
@@ -399,39 +391,51 @@ test_nb(20, FALSE)
 test_nb(0, TRUE)
 test_nb(20, TRUE)
 
+
 #---------------------#
 # K-NEAREST NEIGHBORS #
 #---------------------#
 
 # Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
 test_knn <- function(arg1, arg2){
+  cat(paste("\n------K-NEAREST NEIGHBORS (k=", arg1, ") et (distance =", arg2, ")------"))
   # Apprentissage et test simultanes du classifeur de type k-nearest neighbors
+  clients_categorie_EA$categorie <- factor(clients_categorie_EA$categorie)
   
-  knn <-kknn(categorie~., clients_categorie_EA, clients_categorie_ET, k = arg1, distance = arg2)
-  
-  #if(knn$response != "continuous") {
-  #  print(data.frame(fit=knn$fitted.value,prob=knn$prob),digits)
-  #}
+  knn <- kknn(categorie~., clients_categorie_EA, clients_categorie_ET, k = arg1, distance = arg2)
   
   # Matrice de confusion
+  cat("\n\nMatrice de confusion :\n")
   print(table(clients_categorie_ET$categorie, knn$fitted.values))
   
+  # Test du classifeur : probabilites pour chaque prediction
+  predictions <- as.data.frame(predict(knn, clients_categorie_ET, type="prob"))
+  predictions$predict <- names(predictions)[1:4][apply(predictions[,1:4], 1, which.max)] 
+  predictions$observed <- clients_categorie_ET$categorie
+  
   # Courbe ROC
-  #knn_pred <- prediction(knn$prob[,2], clients_categorie_ET$categorie)
-  #knn_perf <- performance(knn_pred,"tpr","fpr")
-  #plot(knn_perf, main = "Classifeurs K-plus-proches-voisins kknn()", add = arg3, col = arg4)
+  roc.berline <- roc(ifelse(predictions$observed=="berline", "berline", "non-berline"), as.numeric(predictions$berline)) 
+  roc.citadine <- roc(ifelse(predictions$observed=="citadine", "citadine", "non-citadine"), as.numeric(predictions$citadine)) 
+  roc.compacte <- roc(ifelse(predictions$observed=="compacte", "compacte", "non-compacte"), as.numeric(predictions$compacte)) 
+  roc.sportive <- roc(ifelse(predictions$observed=="sportive", "sportive", "non-sportive"), as.numeric(predictions$sportive)) 
+  plot(roc.berline, col = "orange", main = paste("Classifieurs bayesiens naiveBayes( (laplace : ", arg1, ", usekernel : ", arg2, ")"))
+  lines(roc.compacte, col = "red") 
+  lines(roc.sportive, col = "green") 
+  lines(roc.citadine, col = "blue") 
+  
+  legend(0.3, 0.4, legend=c("berline", "compacte", "sportive", "citadine"),
+         col=c("orange", "red", "green", "blue"), lty=1:2, cex=0.8)
   
   # Calcul de l'AUC et affichage par la fonction cat()
-  #knn_auc <- performance(knn_pred, "auc")
-  #cat("AUC = ", as.character(attr(knn_auc, "y.values")))
+  calcul_auc("berline", "nonberline", predictions)
+  calcul_auc("citadine", "noncitadine", predictions)
+  calcul_auc("compacte", "noncompacte", predictions)
+  calcul_auc("sportive", "nonsportive", predictions)
   
   # Return sans affichage sur la console
   invisible()
+  
 }
-
-#-------------------------------------------------#
-# APPRENTISSAGE DES CONFIGURATIONS ALGORITHMIQUES #
-#-------------------------------------------------#
 
 # K plus proches voisins
 test_knn(10, 1)
@@ -439,50 +443,16 @@ test_knn(10, 2)
 test_knn(20, 1)
 test_knn(20, 2)
 
-
-#-----------------#
-# NEURAL NETWORKS #
-#-----------------#
-
-# Definition de la fonction d'apprentissage, test et evaluation par courbe ROC
-test_nnet <- function(arg1, arg2, arg3){
-  # Redirection de l'affichage des messages interm???diaires vers un fichier texte
-  sink('output.txt', append=T)
-  
-  # Apprentissage du classifeur 
-  nn <- nnet(categorie~., clients_categorie_EA, size = arg1, decay = arg2, maxit=arg3)
-  
-  # R???autoriser l'affichage des messages interm???diaires
-  sink(file = NULL)
-  
-  # Test du classifeur : classe predite
-  nn_class <- predict(nn, clients_categorie_ET, type="class")
-  
-  # Matrice de confusion
-  print(table(clients_categorie_ET$categorie, nn_class))
-  
-  # Test des classifeurs : probabilites pour chaque prediction
-  nn_prob <- predict(nn, clients_categorie_ET, type="raw")
-  
-  # Courbe ROC 
-  nn_pred <- prediction(nn_prob[,1], produit_QF_ET$Produit)
-  nn_perf <- performance(nn_pred,"tpr","fpr")
-  plot(nn_perf, main = "R???seaux de neurones nnet()", add = arg4, col = arg5)
-  
-  # Calcul de l'AUC
-  nn_auc <- performance(nn_pred, "auc")
-  cat("AUC = ", as.character(attr(nn_auc, "y.values")))
-}
-  
-test_nnet(50, 0.01, 100)
-test_nnet(50, 0.01, 300)
-
 #-------------------------------------------------------------#
 # 6 Application du modèle de prédiction aux données Marketing #
 #-------------------------------------------------------------#
 marketing <- read.csv("Marketing.csv", header = TRUE, sep = ",", dec = ".")
-marketing$predict_categorie <- test_tree1
+#Classifieur le plus performant choisi :
 
+dt <- rpart(categorie~., clients_categorie_EA, parms = list(split = "gini"), control = rpart.control(minbucket = 10))
+dt_class <- predict(dt, marketing, type="class")
+
+marketing$predict_categorie <- dt_class
 
 
 
