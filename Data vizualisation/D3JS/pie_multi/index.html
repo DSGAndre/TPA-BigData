@@ -145,7 +145,7 @@
 
             // Je récupère le fichier json que j'ai en local
             let request = new XMLHttpRequest();
-            request.open("GET", "co2.json", false);
+            request.open("GET", "clients.json", false);
             request.send(null);
             let dataJson = JSON.parse(request.responseText);
             let categoryListForButton = [];
