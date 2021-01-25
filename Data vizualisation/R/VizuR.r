@@ -103,6 +103,29 @@ immaGroup <- immatriculations %>%
 
 
 ####
+##
+table(immatriculation_client$situationFamiliale)
+
+immatriculation_client <- immatriculationsCleaned %>% left_join(clientsCleaned, by=c("immatriculation"="immatriculation")) %>% 
+  mutate(sf_celib = ifelse(situationFamiliale == "Seul" | situationFamiliale == "Seule" | situationFamiliale == "Célibataire", 1, 0)) %>% 
+  mutate(sf_divorce = ifelse(situationFamiliale == "Divorcée", 1, 0)) %>% 
+  mutate(sf_couple = ifelse(situationFamiliale == "En Couple", 1, 0)) %>% 
+  mutate(sf_marie = ifelse(situationFamiliale == "Marié(e)", 1, 0)) %>% 
+  mutate(sf_count = ifelse(is.na(situationFamiliale), 0, 1)) %>% 
+  mutate(sf_celib = ifelse(is.na(sf_celib), 0, sf_celib))  %>% 
+  mutate(sf_divorce = ifelse(is.na(sf_divorce), 0, sf_divorce))  %>% 
+  mutate(sf_marie = ifelse(is.na(sf_marie), 0, sf_marie)) %>% 
+  mutate(sf_couple = ifelse(is.na(sf_couple), 0, sf_couple)) 
+
+immatriculation_client_group <- immatriculation_client %>% mutate(number = 1) %>% 
+  group_by(puissance, prix, marque, nom) %>% 
+  summarise(number = sum(number), sf_celib=sum(sf_celib), sf_divorce=sum(sf_divorce), sf_couple=sum(sf_couple), sf_marie=sum(sf_marie), sf_count=sum(sf_count)) 
+
+##
+####
+
+
+####
 ##Clients
 ## join client et immatriculations
 
@@ -132,6 +155,8 @@ write_json(imma_diffMarque, "data_marquevendu.json")
 write_json(immaGroup, "imma_groupby.json")
 write_json(client_join_Cleaned_group, "client_join_Cleaned_group.json")
 write_json(client_join_Cleaned_group_shuffle, "client_join_Cleaned_group_shuffle.json")
+write_json(immatriculation_client_group, "immatriculation_client_group.json")
+
 ##
 ####
 

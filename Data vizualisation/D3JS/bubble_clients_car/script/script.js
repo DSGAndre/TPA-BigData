@@ -4,8 +4,8 @@
 d3.json("data.json", function (error, dataImported) {
   if (error) throw error;
   // set the dimensions and margins of the graph
-  var margin = { top: 40, right: 150, bottom: 60, left: 30 },
-    width = 1000 - margin.left - margin.right,
+  var margin = { top: 40, right: 300, bottom: 60, left: 30 },
+    width = 1200 - margin.left - margin.right,
     height = 800 - margin.top - margin.bottom;
 
   var zoom = d3.zoom()
@@ -120,17 +120,153 @@ d3.json("data.json", function (error, dataImported) {
     .style("color", "white")
     .style("position", "absolute")
 
+  var tooltipHTML = tooltip.append("div")
+
+
+/**
+ * TOOLTIP PIE CHART
+ */
+  var dataTooltip = [{ name: 'a', value: 10 }, { name: 'b', value: 20 }, { name: 'c', value: 100 }];
+
+  var marginTooltip = { top: 40, right: 300, bottom: 40, left: 40 },
+    widthTooltip = 850 - marginTooltip.left - marginTooltip.right,
+    heightTooltip = 300 - marginTooltip.top - marginTooltip.bottom,
+    radiusTooltip = Math.min(widthTooltip, heightTooltip) / 2;
+
+
+  var colorTooltip = d3.scaleOrdinal()
+    .range(d3.schemeSet1);
+
+  var arcTooltip = d3.arc()
+    .outerRadius(radiusTooltip - 10)
+    .innerRadius(0);
+
+  var labelArcTooltip = d3.arc()
+    .outerRadius(radiusTooltip - 40)
+    .innerRadius(radiusTooltip - 40);
+
+  var pieTooltip = d3.pie()
+    .sort(null)
+    .value(function (d) { return d.value; });
+
+  var svgTooltip = tooltip.append("svg")
+    .attr("width", widthTooltip)
+    .attr("height", heightTooltip)
+    .style("padding", "20px 0")
+    .append("g")
+    .attr("transform", "translate(" + widthTooltip / 2.5 + "," + heightTooltip / 2 + ")");
+
+
+
+  function updateTooltipChart() {
+    var pie = d3.pie()
+      .value(function (d) { return d.value; })
+      .sort(null) 
+    var data_ready = pie(dataTooltip)
+
+    labelArcTooltip = d3.arc()
+      .outerRadius(radiusTooltip - 40)
+      .innerRadius(radiusTooltip - 40);
+
+    var u = svgTooltip.selectAll("path")
+      .data(data_ready)
+
+    var uTxt = svgTooltip.selectAll("text")
+      .data(data_ready)
+
+    var uLegend = svgTooltip.selectAll("myTooltipLegend")
+      .data(data_ready)
+
+    u.enter()
+      .append('path')
+      .merge(u)
+      .attr('d', d3.arc()
+        .innerRadius(0)
+        .outerRadius(radiusTooltip)
+      )
+      .attr('fill', function (d) { return (colorTooltip(d.data.name)) })
+      .attr("stroke", "white")
+      .style("stroke-width", "1px")
+      .style("opacity", 1)
+
+    uTxt.enter()
+      .append("text")
+      .merge(uTxt)
+      .attr("transform", function (d) { return "translate(" + labelArcTooltip.centroid(d) + ")"; })
+      .attr("dy", ".35em")
+      .text(formatPie);
+
+    uLegend.enter()
+      .append("text")
+      .merge(uTxt)
+      .attr("x", 130 + size * .8)
+      .attr("y", function (d, i) { return i * (size + 5) + (size / 2) }) // 100 is where the first dot appears. 25 is the distance between dots
+      .style("fill", "white")
+      .text(function (d) { return d.data.name + " : " + (d.data.value / d.data.total * 100).toFixed(2) + "%";; });
+
+    uLegend.enter()
+      .append("circle")
+      .merge(uTxt)
+      .attr("cx", 130)
+      .attr("cy", function (d, i) { return 10 + i * (size + 5) }) // 100 is where the first dot appears. 25 is the distance between dots
+      .attr("r", 8)
+      .style("fill", function (d) { return colorTooltip(d.data.name) })
+
+
+    u.exit()
+      .remove()
+
+    uTxt.exit()
+      .remove()
+
+    uLegend.exit()
+      .remove()
+  }
+
+  function formatPie(d) {
+    console.log(d)
+    var ret = Math.round(d.data.value / d.data.total * 100)
+    console.log(ret)
+    if (ret <= 2) {
+      return "";
+    }
+    else {
+      return Math.round(d.data.value / d.data.total * 100) + "%";
+    }
+
+  }
+
+
+
+
+
+
+
+
   // -2- Create 3 functions to show / update (when mouse move but stay on same circle) / hide the tooltip
   var showTooltip = function (d) {
+    dataTooltip = [
+      { name: 'Célibataire', value: d.sf_celib, total: d.sf_count },
+      { name: 'En couple', value: d.sf_couple, total: d.sf_count },
+      { name: 'Divorcé(e)', value: d.sf_divorce, total: d.sf_count },
+      { name: 'Marié(e)', value: d.sf_marie, total: d.sf_count }
+    ];
+
+    // tooltip.style("background-color", myColor(d.marque))
+
+    updateTooltipChart();
+    console.log(d);
     tooltip
       .transition()
       .duration(200)
     tooltip
       .style("opacity", 1)
       .style("visibility", "visible")
-      .html("Marque : " + d.marque + " " + d.nom + "<br> Puissance : " + d.puissance + " chevaux <br> Prix : " + d.prix + " € <br> Nombre de ventes : " + d.number + " unités")
+
       .style("left", (d3.mouse(this)[0] + 50) + "px")
       .style("top", (d3.mouse(this)[1] + 50) + "px")
+
+    tooltipHTML.html("<h2 style='margin: 0 0'>" + d.marque + " " + d.nom + "</h2> <h4 style='margin: 0 0'>" + d.prix + " € </h4> " + d.puissance + " chevaux <br> " + d.number + " unités vendues")
   }
   var moveTooltip = function (d) {
     // console.log(d3.mouse(this))
@@ -181,6 +317,7 @@ d3.json("data.json", function (error, dataImported) {
     .on("mouseover", showTooltip)
     .on("mousemove", moveTooltip)
     .on("mouseleave", hideTooltip)
+    .on("click", function (d) { console.log(d) })
 
 
 
@@ -190,8 +327,8 @@ d3.json("data.json", function (error, dataImported) {
 
   // Add legend: circles
   var valuesToShow = [10000, 100000, 500000]
-  var xCircle = 800
-  var xLabel = 850
+  var xCircle = 1000
+  var xLabel = 1050
   svg
     .selectAll("legend")
     .data(valuesToShow)
