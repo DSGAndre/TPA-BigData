@@ -39,13 +39,15 @@ public class OracleNoSQLDataLoader {
     private final KVStore store;
     private final String tabCustomersName = "CUSTOMER_GROUPE1_2020";
     private final String tabCatalogueName = "CATALOGUE_GROUPE1_2020";
+    private final String tabRegistrationName = "REGISTRATION_GROUPE1_2020";
 
     public static void main(String args[]) {
         try {
             OracleNoSQLDataLoader dL = new OracleNoSQLDataLoader();
             dL.initTables();
             dL.loadCustomerDataFromFile(args[0]);
-            dL.loadCatalogueDataFromFile(args[1]);
+            dL.loadCarDataFromFile(args[1], true);
+            dL.loadCarDataFromFile(args[2], false);
         } catch (RuntimeException e) {
             e.printStackTrace();
         }
@@ -103,13 +105,21 @@ public class OracleNoSQLDataLoader {
         }
     }
 
+    /**
+     * Init tables : drop and create tables.
+     */
     public void initTables() {
         this.dropTableCustomers();
         this.dropTableCatalogue();
+        this.dropTableRegistration();
         this.createTableCustomer();
         this.createTableCatalogue();
+        this.createTableRegistration();
     }
 
+    /**
+     * Drop the table for the customers.
+     */
     public void dropTableCustomers() {
         String statement = null;
 
@@ -117,6 +127,9 @@ public class OracleNoSQLDataLoader {
         executeDDL(statement);
     }
 
+    /**
+     * Drop the table for the catalogue.
+     */
     public void dropTableCatalogue() {
         String statement = null;
 
@@ -124,7 +137,19 @@ public class OracleNoSQLDataLoader {
         executeDDL(statement);
     }
 
+    /**
+     * Drop the table for the registrations.
+     */
+    public void dropTableRegistration() {
+        String statement = null;
 
+        statement ="drop table "+ this.tabRegistrationName;
+        executeDDL(statement);
+    }
+
+    /**
+     * Create the table for the customers.
+     */
     public void createTableCustomer() {
         String statement = null;
         statement="Create table " + this.tabCustomersName +" ("
@@ -135,12 +160,15 @@ public class OracleNoSQLDataLoader {
                 + "familystatus ENUM(en_couple, celibataire, seule, marie_e, divorce_e, undefined),"
                 + "nbofchildren INTEGER,"
                 + "secondcar BOOLEAN,"
-                + "licenseplate STRING,"
+                + "registration STRING,"
                 + "PRIMARY KEY (id))";
         System.out.println(statement);
         executeDDL(statement);
     }
 
+    /**
+     * Drop the table for the catalogue.
+     */
     public void createTableCatalogue() {
         String statement = null;
         statement="Create table " + this.tabCatalogueName +" ("
@@ -158,7 +186,31 @@ public class OracleNoSQLDataLoader {
         executeDDL(statement);
     }
 
-    private void insertCustomRow(
+    /**
+     * Drop the table for the registrations.
+     */
+    public void createTableRegistration() {
+        String statement = null;
+        statement="Create table " + this.tabRegistrationName +" ("
+                + "id INTEGER,"
+                + "registration STRING,"
+                + "brand STRING,"
+                + "name STRING,"
+                + "power INTEGER,"
+                + "length ENUM(courte, moyenne, longue, tres_longue, undefined),"
+                + "nbofseats INTEGER,"
+                + "nbofdoors INTEGER,"
+                + "color STRING,"
+                + "secondhandcar BOOLEAN,"
+                + "price INTEGER,"
+                + "PRIMARY KEY (id))";
+        executeDDL(statement);
+    }
+
+    /**
+     * Insert a row in the table for the customers.
+     */
+    private void insertCustomerRow(
             int id,
             int age,
             String sexe,
@@ -166,8 +218,8 @@ public class OracleNoSQLDataLoader {
             String familystatus,
             int nbofchildren,
             boolean secondcar,
-            String licenseplate
-        ){
+            String registration
+    ){
         StatementResult result = null;
         String statement = null;
         System.out.println("********************************** insertCustomerRow *********************************" );
@@ -216,7 +268,7 @@ public class OracleNoSQLDataLoader {
             }
             customersRow.put("nbofchildren", nbofchildren);
             customersRow.put("secondcar", secondcar);
-            customersRow.put("licenseplate", licenseplate);
+            customersRow.put("registration", registration);
 
             tableH.put(customersRow, null, null);
         }
@@ -228,7 +280,9 @@ public class OracleNoSQLDataLoader {
         }
     }
 
-
+    /**
+     * Insert a row in the table for the catalogue.
+     */
     private void insertCatalogueRow(
             int id,
             String brand,
@@ -275,6 +329,60 @@ public class OracleNoSQLDataLoader {
         }
     }
 
+    /**
+     * Insert a row in the table for the registrations.
+     */
+    private void insertRegistrationRow(
+            int id,
+            String registration,
+            String brand,
+            String name,
+            int power,
+            String length,
+            int nbofseats,
+            int nbofdoors,
+            String color,
+            boolean secondhandcar,
+            int price
+    ){
+        StatementResult result = null;
+        String statement = null;
+        System.out.println("********************************** insertRegistrationRow *********************************" );
+
+        try {
+            TableAPI tableH = store.getTableAPI();
+            Table tableRegistration = tableH.getTable(this.tabRegistrationName);
+            Row registrationRow = tableRegistration.createRow();
+
+            registrationRow.put("id", id);
+            registrationRow.put("registration", registration);
+            registrationRow.put("brand", brand);
+            registrationRow.put("name", name);
+            registrationRow.put("power", power);
+            if (length.equals("tr�s longue")) {
+                registrationRow.putEnum("length", "tres_longue");
+            } else {
+                registrationRow.putEnum("length", length);
+            }
+            registrationRow.put("nbofseats", nbofseats);
+            registrationRow.put("nbofdoors", nbofdoors);
+            registrationRow.put("color", color);
+            registrationRow.put("secondhandcar", secondhandcar);
+            registrationRow.put("price", price);
+
+            tableH.put(registrationRow, null, null);
+        }
+        catch (IllegalArgumentException e) {
+            System.out.println("Invalid statement:\n" + e.getMessage());
+        }
+        catch (FaultException e) {
+            System.out.println("Statement couldn't be executed, please retry: " + e);
+        }
+    }
+
+    /**
+     * Load customers data from a file's path given as parameter.
+     */
     void loadCustomerDataFromFile(String customerDataFileName){
         InputStreamReader 	ipsr;
         BufferedReader 		br=null;
@@ -330,14 +438,14 @@ public class OracleNoSQLDataLoader {
                     secondCar = Boolean.parseBoolean(customerRecord.get(5));
                 }
 
-                String licensePlate;
+                String registration;
                 if (this.isDataInvalid(customerRecord.get(6))) {
-                    licensePlate = "undefined";
+                    registration = "undefined";
                 } else {
-                    licensePlate = customerRecord.get(6);
+                    registration = customerRecord.get(6);
                 }
                 // Add the customer in the KVStore
-                this.insertCustomRow(++id, age, sexe, taux, familyStatus, nbOfChildren, secondCar, licensePlate);
+                this.insertCustomerRow(++id, age, sexe, taux, familyStatus, nbOfChildren, secondCar, registration);
             }
         }
         catch(Exception e){
@@ -345,7 +453,10 @@ public class OracleNoSQLDataLoader {
         }
     }
 
-    void loadCatalogueDataFromFile(String catalogueDataFileName){
+    /**
+     * Load catalogue or registrations data from a file's path given as parameter.
+     */
+    void loadCarDataFromFile(String catalogueDataFileName, boolean isCatalogueTyped){
         InputStreamReader 	ipsr;
         BufferedReader 		br=null;
         InputStream 		ips;
@@ -362,77 +473,91 @@ public class OracleNoSQLDataLoader {
             br.readLine();
 
             while ((line = br.readLine()) != null) {
-                ArrayList<String> catalogueRecord= new ArrayList<String>();
+                ArrayList<String> carRecord= new ArrayList<String>();
                 StringTokenizer val = new StringTokenizer(line,",");
                 while(val.hasMoreTokens()) {
-                    catalogueRecord.add(val.nextToken().toString());
+                    carRecord.add(val.nextToken().toString());
+                }
+                int index = -1;
+                String registration = "";
+
+                if(!isCatalogueTyped) {
+                    if (this.isDataInvalid(carRecord.get(++index))) {
+                        registration = "undefined";
+                    } else {
+                        registration = carRecord.get(index);
+                    }
                 }
 
                 String brand;
-                if (this.isDataInvalid(catalogueRecord.get(0))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     brand = "undefined";
                 } else {
-                    brand = catalogueRecord.get(0);
+                    brand = carRecord.get(index);
                 }
 
                 String name;
-                if (this.isDataInvalid(catalogueRecord.get(1))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     name = "undefined";
                 } else {
-                    name = catalogueRecord.get(1);
+                    name = carRecord.get(index);
                 }
 
                 int power;
-                if (this.isDataInvalid(catalogueRecord.get(2))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     power = -1;
                 } else {
-                    power = Integer.parseInt(catalogueRecord.get(2));
+                    power = Integer.parseInt(carRecord.get(index));
                 }
 
                 String length;
-                if (this.isDataInvalid(catalogueRecord.get(3))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     length = "undefined";
                 } else {
-                    length = catalogueRecord.get(3);
+                    length = carRecord.get(index);
                 }
 
                 int nbOfSeats;
-                if (this.isDataInvalid(catalogueRecord.get(4))) {
+                if (this.isDataInvalid(carRecord.get(index))) {
                     nbOfSeats = -1;
                 } else {
-                    nbOfSeats = Integer.parseInt(catalogueRecord.get(4));
+                    nbOfSeats = Integer.parseInt(carRecord.get(++index));
                 }
 
                 int nbOfDoors;
-                if (this.isDataInvalid(catalogueRecord.get(5))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     nbOfDoors = -1;
                 } else {
-                    nbOfDoors = Integer.parseInt(catalogueRecord.get(5));
+                    nbOfDoors = Integer.parseInt(carRecord.get(index));
                 }
 
                 String color;
-                if (this.isDataInvalid(catalogueRecord.get(6))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     color = "undefined";
                 } else {
-                    color = catalogueRecord.get(6);
+                    color = carRecord.get(index);
                 }
 
                 boolean secondHandCar;
-                if (this.isDataInvalid(catalogueRecord.get(7))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     secondHandCar = false;
                 } else {
-                    secondHandCar = Boolean.parseBoolean(catalogueRecord.get(7));
+                    secondHandCar = Boolean.parseBoolean(carRecord.get(index));
                 }
 
                 int price;
-                if (this.isDataInvalid(catalogueRecord.get(8))) {
+                if (this.isDataInvalid(carRecord.get(++index))) {
                     price = -1;
                 } else {
-                    price = Integer.parseInt(catalogueRecord.get(8));
+                    price = Integer.parseInt(carRecord.get(index));
                 }
 
-                // Add the catalogue data in the KVStore
-                this.insertCatalogueRow(++id, brand, name, power, length, nbOfSeats, nbOfDoors, color, secondHandCar, price);
+                // Add the car data in the KVStore
+                if (isCatalogueTyped) {
+                    this.insertCatalogueRow(++id, brand, name, power, length, nbOfSeats, nbOfDoors, color, secondHandCar, price);
+                } else {
+                    this.insertRegistrationRow(++id, registration, brand, name, power, length, nbOfSeats, nbOfDoors, color, secondHandCar, price);
+                }
             }
         }
         catch(Exception e){
