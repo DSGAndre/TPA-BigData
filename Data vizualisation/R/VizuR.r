@@ -2,16 +2,15 @@
 
 #https://jsfiddle.net/amenin/qscraok2/1/
 
-
-#Onglet Session -> Set working directory -> To source file location
-setwd("../data")
-getwd()
-
 install.packages('tidyverse')
 install.packages("scales")
 install.packages("dplyr")
 install.packages("jsonlite")
 
+
+#Onglet Session -> Set working directory -> To source file location
+setwd("../data")
+getwd()
 
 
 library(tidyverse)
@@ -115,11 +114,19 @@ immatriculation_client <- immatriculationsCleaned %>% left_join(clientsCleaned, 
   mutate(sf_celib = ifelse(is.na(sf_celib), 0, sf_celib))  %>% 
   mutate(sf_divorce = ifelse(is.na(sf_divorce), 0, sf_divorce))  %>% 
   mutate(sf_marie = ifelse(is.na(sf_marie), 0, sf_marie)) %>% 
-  mutate(sf_couple = ifelse(is.na(sf_couple), 0, sf_couple)) 
+  mutate(sf_couple = ifelse(is.na(sf_couple), 0, sf_couple)) %>%  
+  mutate(age_1831 = ifelse(age >= 18 & age <= 31, 1, 0)) %>%
+  mutate(age_3242 = ifelse(age >= 32 & age <= 42, 1, 0)) %>% 
+  mutate(age_4359 = ifelse(age >= 43 & age <= 59, 1, 0)) %>% 
+  mutate(age_6084 = ifelse(age >= 60 & age <= 84, 1, 0)) %>% 
+  mutate(age_1831 = ifelse(is.na(age_1831), 0, age_1831))  %>% 
+  mutate(age_3242 = ifelse(is.na(age_3242), 0, age_3242))  %>% 
+  mutate(age_4359 = ifelse(is.na(age_4359), 0, age_4359)) %>% 
+  mutate(age_6084 = ifelse(is.na(age_6084), 0, age_6084)) 
 
 immatriculation_client_group <- immatriculation_client %>% mutate(number = 1) %>% 
   group_by(puissance, prix, marque, nom) %>% 
-  summarise(number = sum(number), sf_celib=sum(sf_celib), sf_divorce=sum(sf_divorce), sf_couple=sum(sf_couple), sf_marie=sum(sf_marie), sf_count=sum(sf_count)) 
+  summarise(number = sum(number), sf_celib=sum(sf_celib), sf_divorce=sum(sf_divorce), sf_couple=sum(sf_couple), sf_marie=sum(sf_marie), sf_count=sum(sf_count),  age_1831=sum(age_1831), age_3242=sum(age_3242),age_4359=sum(age_4359), age_6084=sum(age_6084)) 
 
 ##
 ####

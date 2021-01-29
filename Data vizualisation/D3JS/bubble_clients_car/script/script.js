@@ -119,19 +119,22 @@ d3.json("data.json", function (error, dataImported) {
     .style("padding", "10px")
     .style("color", "white")
     .style("position", "absolute")
+    // .style("width", "min-content")
 
   var tooltipHTML = tooltip.append("div")
 
 
-/**
- * TOOLTIP PIE CHART
- */
+  /**
+   * TOOLTIP PIE CHART
+   */
   var dataTooltip = [{ name: 'a', value: 10 }, { name: 'b', value: 20 }, { name: 'c', value: 100 }];
+  var dataTooltipAge = [{ name: 'a', value: 10 }, { name: 'b', value: 20 }, { name: 'c', value: 100 }];
 
   var marginTooltip = { top: 40, right: 300, bottom: 40, left: 40 },
-    widthTooltip = 850 - marginTooltip.left - marginTooltip.right,
-    heightTooltip = 300 - marginTooltip.top - marginTooltip.bottom,
-    radiusTooltip = Math.min(widthTooltip, heightTooltip) / 2;
+    widthTooltip = 450,
+    heightTooltip = 210,
+    radiusTooltip = 100;
+  // radiusTooltip = Math.min(widthTooltip, heightTooltip) / 2;
 
 
   var colorTooltip = d3.scaleOrdinal()
@@ -154,19 +157,21 @@ d3.json("data.json", function (error, dataImported) {
     .attr("height", heightTooltip)
     .style("padding", "20px 0")
     .append("g")
-    .attr("transform", "translate(" + widthTooltip / 2.5 + "," + heightTooltip / 2 + ")");
+    .attr("transform", "translate(" + (radiusTooltip + 30) + "," + heightTooltip / 2 + ")");
+
+  var svgTooltip2 = tooltip.append("svg")
+    .attr("width", widthTooltip)
+    .attr("height", heightTooltip)
+    .style("padding", "20px 0")
+    .append("g")
+    .attr("transform", "translate(" + (radiusTooltip + 30) + "," + heightTooltip / 2 + ")");
 
 
 
   function updateTooltipChart() {
-    var pie = d3.pie()
-      .value(function (d) { return d.value; })
-      .sort(null) 
-    var data_ready = pie(dataTooltip)
+    var data_ready = pieTooltip(dataTooltip)
+    var data_readyAge = pieTooltip(dataTooltipAge)
 
-    labelArcTooltip = d3.arc()
-      .outerRadius(radiusTooltip - 40)
-      .innerRadius(radiusTooltip - 40);
 
     var u = svgTooltip.selectAll("path")
       .data(data_ready)
@@ -176,6 +181,21 @@ d3.json("data.json", function (error, dataImported) {
 
     var uLegend = svgTooltip.selectAll("myTooltipLegend")
       .data(data_ready)
+
+
+    var u2 = svgTooltip2.selectAll("path")
+      .data(data_readyAge)
+
+    var uTxt2 = svgTooltip2.selectAll("text")
+      .data(data_readyAge)
+
+    var uLegend2 = svgTooltip2.selectAll("myTooltipLegend")
+      .data(data_readyAge)
+
+    // var uLegend = svgTooltip.append("g")
+    // .attr("transform", "translate(0," + (-heightTooltip / 2) + ")")
+    // .selectAll("myTooltipLegend")
+    // .data(data_ready)
 
     u.enter()
       .append('path')
@@ -200,15 +220,51 @@ d3.json("data.json", function (error, dataImported) {
       .append("text")
       .merge(uTxt)
       .attr("x", 130 + size * .8)
-      .attr("y", function (d, i) { return i * (size + 5) + (size / 2) }) // 100 is where the first dot appears. 25 is the distance between dots
+      .attr("y", function (d, i) { return i * (size + 5) + (size / 1.5) })
       .style("fill", "white")
-      .text(function (d) { return d.data.name + " : " + (d.data.value / d.data.total * 100).toFixed(2) + "%";; });
+      .text(function (d) { return d.data.name + " : " + (d.data.value / d.data.total * 100).toFixed(2) + "%"; });
 
     uLegend.enter()
       .append("circle")
       .merge(uTxt)
       .attr("cx", 130)
-      .attr("cy", function (d, i) { return 10 + i * (size + 5) }) // 100 is where the first dot appears. 25 is the distance between dots
+      .attr("cy", function (d, i) { return 10 + i * (size + 5) })
+      .attr("r", 8)
+      .style("fill", function (d) { return colorTooltip(d.data.name) })
+
+
+    u2.enter()
+      .append('path')
+      .merge(u2)
+      .attr('d', d3.arc()
+        .innerRadius(0)
+        .outerRadius(radiusTooltip)
+      )
+      .attr('fill', function (d) { return (colorTooltip(d.data.name)) })
+      .attr("stroke", "white")
+      .style("stroke-width", "1px")
+      .style("opacity", 1)
+
+    uTxt2.enter()
+      .append("text")
+      .merge(uTxt2)
+      .attr("transform", function (d) { return "translate(" + labelArcTooltip.centroid(d) + ")"; })
+      .attr("dy", ".35em")
+      .text(function (d) { return d.data.name });
+
+    uLegend2.enter()
+      .append("text")
+      .merge(uTxt2)
+      .attr("x", 130 + size * .8)
+      .attr("y", function (d, i) { return i * (size + 5) + (size / 1.5) })
+      .style("fill", "white")
+      .text(function (d) { return d.data.name + " ans : " + d.data.value });
+
+    uLegend2.enter()
+      .append("circle")
+      .merge(uTxt2)
+      .attr("cx", 130)
+      .attr("cy", function (d, i) { return 10 + i * (size + 5) })
       .attr("r", 8)
       .style("fill", function (d) { return colorTooltip(d.data.name) })
 
@@ -221,12 +277,21 @@ d3.json("data.json", function (error, dataImported) {
 
     uLegend.exit()
       .remove()
+
+    u2.exit()
+      .remove()
+
+    uTxt2.exit()
+      .remove()
+
+    uLegend2.exit()
+      .remove()
   }
 
   function formatPie(d) {
-    console.log(d)
+    // console.log(d)
     var ret = Math.round(d.data.value / d.data.total * 100)
-    console.log(ret)
+    // console.log(ret)
     if (ret <= 2) {
       return "";
     }
@@ -252,6 +317,13 @@ d3.json("data.json", function (error, dataImported) {
       { name: 'Marié(e)', value: d.sf_marie, total: d.sf_count }
     ];
 
+    dataTooltipAge = [
+      { name: '18-31', value: d.age_1831 },
+      { name: '32-42', value: d.age_3242 },
+      { name: '43-59', value: d.age_4359 },
+      { name: '60-84', value: d.age_6084 }
+    ];
+
     // tooltip.style("background-color", myColor(d.marque))
 
     updateTooltipChart();
@@ -266,7 +338,7 @@ d3.json("data.json", function (error, dataImported) {
       .style("left", (d3.mouse(this)[0] + 50) + "px")
       .style("top", (d3.mouse(this)[1] + 50) + "px")
 
-    tooltipHTML.html("<h2 style='margin: 0 0'>" + d.marque + " " + d.nom + "</h2> <h4 style='margin: 0 0'>" + d.prix + " € </h4> " + d.puissance + " chevaux <br> " + d.number + " unités vendues")
+    tooltipHTML.html("<h2 style='margin: 0 0'>" + d.marque + " " + d.nom + "</h2> <h3 style='margin: 0 0'>" + d.prix + " € </h3> " + d.puissance + " cv - " + d.number + " unités vendues <h3 style='text-align: center'>Répartition des ventes selon la situation familiale et l'âge :</h3>")
   }
   var moveTooltip = function (d) {
     // console.log(d3.mouse(this))
