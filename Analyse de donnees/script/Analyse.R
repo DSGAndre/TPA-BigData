@@ -39,9 +39,10 @@ library(naivebayes)
 #------------------------------------#
 # 1 Analyse exploratoire des données #
 #------------------------------------#
+#Importation des données
 catalogue <- read.csv("Catalogue.csv", header = TRUE, sep = ";", dec = ".")
 immatriculations <- read.csv("Immatriculations.csv", header = TRUE, sep = ";", dec = ".")
-clients <- read.csv("Clients_0.csv", header = TRUE, sep = ";", dec = ".", stringsAsFactors = T)
+clients <- read.csv("Clients_0.csv", header = TRUE, sep = ";", dec = ".")
 
 #Nettoyage dataframe clients
 clients <- subset(clients, select = -id)
@@ -52,7 +53,11 @@ clients <- subset(clients, taux !=-1 &
                     X2eme.voiture != "Undefined" &
                     situationFamiliale != "Undefined"
                   )
-clients$situationFamiliale = ifelse(clients$situationFamiliale == "Seule" | clients$situationFamiliale == "Seul" | clients$situationFamiliale == "Divorcée", "Célibataire", clients$situationFamiliale  )
+clients$situationFamiliale = ifelse(clients$situationFamiliale == "Seule" | 
+                                      clients$situationFamiliale == "Seul" | 
+                                      clients$situationFamiliale == "Divorcée", 
+                                    "Célibataire", clients$situationFamiliale
+                                    )
 
 clients %>%
   select(situationFamiliale) %>%
@@ -94,24 +99,29 @@ pct <- round(slices/sum(slices)*100)
 lbls <- paste(lbls, pct) # add percents to labels
 lbls <- paste(lbls,"%",sep="") # ad % to labels
 pie(slices, labels = lbls, col=rainbow(length(lbls)),
-    main="Pie Chart of Age client")
+    main="Répartition de l'âge des clients")
 
 
 clients <- subset(clients, select = -age_cut)
 # ----------------------------------------------------------------------- #
 
+#distribution de la variable age
+nbRowEA <- round(nrow(clients)*(2/3))
+clients_age_EA <- clients[1:nbRowEA,]
+clients_age_ET <- clients[(nbRowEA+1):42368,]
 
-
-#plus la voiture est chere, plus sa puissance est élevé ? 
-#vrai ! corrélation entre le prix et la puissance de la voiture car coeff de corrélation proche de 1 : 0.87
-cor(catalogue$puissance, catalogue$prix, method="pearson")
-ggplot(catalogue, aes(x=prix, y=puissance)) + geom_point(aes(size=puissance))
-boxplot(immatriculations$puissance, main="Boite à moustance de la colonne puissance") 
+boxplot(clients_age_EA$age, main="Distribution dans l'ensemble d'apprentissage") 
+boxplot(clients_age_ET$age, main="Distribution dans l'ensemble de test") 
+#On constate aucune différence significative entre les distributions des valeurs de la variable Age entre les deux ensembles
 
 #plus le clients est agé, plus il a un taux d'entemment elevé ? 
 #faux ! pas de corrélation entre l'age et le taux car coefficient de corrélation proche de 0
 cor(clients$age, clients$taux, method="pearson")
 
+#plus la voiture est chere, plus sa puissance est élevé ? 
+#vrai ! corrélation entre le prix et la puissance de la voiture car coeff de corrélation proche de 1 : 0.87
+cor(catalogue$puissance, catalogue$prix, method="pearson")
+ggplot(catalogue, aes(x=prix, y=puissance)) + geom_point(aes(size=puissance))
 
 #Les clients ayant un taux d'endettement élevé sont plus susceptible d'avoir une deuxième voiture : 
 #Non, nous constatons que la majeur partie des clients possédant une deuxième voiture ont un t.e de 5xx euros.
@@ -151,9 +161,6 @@ plot(df$taux_group,
 #les familiale : nb de place > 5, || longueur : longue, très longue
 #les berlines : puissance : entre 100 et 300 CV || longueur : longue, très longue
 
-
-
-
 catalogue$categorie = ifelse(catalogue$puissance<90 & catalogue$longueur == "courte", "citadine",
                              ifelse(catalogue$puissance>300 , "sportive",
                                     ifelse(catalogue$longueur == "moyenne" | catalogue$longueur == "courte" & catalogue$puissance>=90  , "compacte",
@@ -165,19 +172,17 @@ catalogue$categorie = ifelse(catalogue$puissance<90 & catalogue$longueur == "cou
                              )
 )
 
-
-
 table(catalogue$categorie)
 write.table(catalogue, file="catalogue_and_categorie.csv", sep = "\t",  dec = ".",  row.names = F)
 #On peut constater sur le nuage de points que les catégories de voitures peuvent se distinguer par le prix et puissance
-ggplot(catalogue, aes(x=categorie, y=prix)) + geom_point(aes(size=puissance))
+ggplot(catalogue, aes(x=categorie, y=prix)) + geom_jitter(aes(size=puissance))
 
 #------------------------------------------------------------------------------------#
 # 3 Application des catégories de véhicules définies au données des Immatriculations #
 #------------------------------------------------------------------------------------#
 
 immatriculations$categorie = ifelse(immatriculations$puissance<90 & immatriculations$longueur == "courte", "citadine",
-                                    ifelse(immatriculations$puissance>300 , "sportive",
+                                    ifelse(immatriculations$puissance>300, "sportive",
                                            ifelse(immatriculations$longueur == "moyenne" | immatriculations$longueur == "courte" & immatriculations$puissance>=90  , "compacte",
                                                   ifelse(immatriculations$nbPlaces>5 & (immatriculations$longueur == "longue" | immatriculations$longueur == "très longue"), "familiale",
                                                          ifelse(immatriculations$puissance>=100 & immatriculations$puissance<=300 & (immatriculations$longueur == "longue" | immatriculations$longueur == "très longue"), "berline", "autre"
@@ -185,11 +190,9 @@ immatriculations$categorie = ifelse(immatriculations$puissance<90 & immatriculat
                                                   )
                                            )
                                     )
-)
+                              )
 
 str(immatriculations)
-
-
 #-------------------------------------------------#
 # 4 Fusion des données Clients et Immatriculation #
 #-------------------------------------------------#
@@ -231,7 +234,6 @@ calcul_auc <- function(arg1, arg2, arg3) {
   cat("\n -------------------------------------- \n")
   invisible()
 }  
-
 
 #-------------------------#
 # ARBRE DE DECISION RPART #
@@ -275,7 +277,6 @@ test_rpart <- function(arg1, arg2){
   
   # Return sans affichage sur la console
   invisible()
-
 }
 
 # Arbres de decision
@@ -333,11 +334,10 @@ test_rf <- function(arg1, arg2){
 
 # Forets d'arbres decisionnels aleatoires
 test_rf(300, 3)
+test_rf(200, 3)
 test_rf(300, 5)
 test_rf(500, 3)
 test_rf(500, 5)
-
-
 
 #-------------#
 # NAIVE BAYES #
@@ -382,11 +382,9 @@ test_nb <- function(arg1, arg2){
   
   # Return sans affichage sur la console
   invisible()
-  
 }
 
 # Naive Bayes
-test_nb(0, FALSE)
 test_nb(20, FALSE)
 test_nb(0, TRUE)
 test_nb(20, TRUE)
@@ -418,7 +416,7 @@ test_knn <- function(arg1, arg2){
   roc.citadine <- roc(ifelse(predictions$observed=="citadine", "citadine", "non-citadine"), as.numeric(predictions$citadine)) 
   roc.compacte <- roc(ifelse(predictions$observed=="compacte", "compacte", "non-compacte"), as.numeric(predictions$compacte)) 
   roc.sportive <- roc(ifelse(predictions$observed=="sportive", "sportive", "non-sportive"), as.numeric(predictions$sportive)) 
-  plot(roc.berline, col = "orange", main = paste("Classifieurs bayesiens naiveBayes( (laplace : ", arg1, ", usekernel : ", arg2, ")"))
+  plot(roc.berline, col = "orange", main = paste("Classifieurs K-NEAREST NEIGHBORS ( k : ", arg1, ", distance : ", arg2, ")"))
   lines(roc.compacte, col = "red") 
   lines(roc.sportive, col = "green") 
   lines(roc.citadine, col = "blue") 
@@ -434,7 +432,6 @@ test_knn <- function(arg1, arg2){
   
   # Return sans affichage sur la console
   invisible()
-  
 }
 
 # K plus proches voisins
@@ -443,17 +440,26 @@ test_knn(10, 2)
 test_knn(20, 1)
 test_knn(20, 2)
 
+
 #-------------------------------------------------------------#
 # 6 Application du modèle de prédiction aux données Marketing #
 #-------------------------------------------------------------#
+#Classifieur le plus performant choisi : Random Forest > ntry : 500 mtry : 3
 marketing <- read.csv("Marketing.csv", header = TRUE, sep = ",", dec = ".")
-#Classifieur le plus performant choisi :
+clients_categorie_EA$categorie <- factor(clients_categorie_EA$categorie)
+rf <- randomForest(categorie~., clients_categorie_EA, ntree = 500, mtry = 3)
+# Test du classifeur : classe predite
+rf_class <- predict(rf,marketing, type="response")
+marketing$predict_categorie <- rf_class
+write.table(marketing, file="marketing_prediction.csv", sep = ";",  dec = ".",  row.names = F)
 
+#Autre classifieur pour comparaison
+marketing_rpart <- read.csv("Marketing.csv", header = TRUE, sep = ",", dec = ".")
 dt <- rpart(categorie~., clients_categorie_EA, parms = list(split = "gini"), control = rpart.control(minbucket = 10))
-dt_class <- predict(dt, marketing, type="class")
+dt_class <- predict(dt, marketing_rpart, type="class")
+marketing_rpart$predict_categorie <- dt_class
 
-marketing$predict_categorie <- dt_class
-
-
-
-
+#On constate 2 differences de prediction
+#Pour les individus de la ligne 3 et 9
+#La prédiction pour l'algo rpart est compacte pour les 2 individus 
+#La prediction pour l'algo random forest est citadine pour les 2 individus
