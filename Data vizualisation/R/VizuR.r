@@ -31,9 +31,7 @@ marketing <- read.csv("Marketing.csv", header = TRUE, sep = ",", dec = ".")
 
 
 #Premier traitement
-#clients_0 = clients_0[,-1]
 clients_0$id <- NULL
-#clientsDirty <- rbind(clients_0,clients_8)
 
 str(clients_0)
 clients_0$taux <- as.numeric(as.character(clients_0$taux))
@@ -61,7 +59,7 @@ clients_8 <- clients_8 %>% filter(age >= 18 & age <= 84) %>%
 
 
 clientsCleaned <- rbind(clients_0,clients_8)
-
+str(clientsCleaned)
 
 immatriculationsCleaned <- immatriculations %>% filter(puissance >= 55 & puissance <= 507) %>%
   filter(nbPlaces >= 5 & nbPlaces <= 7) %>%
@@ -76,6 +74,7 @@ immatriculationsCleaned <- immatriculations %>% filter(puissance >= 55 & puissan
 
 ####
 ##Voiture plus et moins vendu
+##Pie chart plus(imma_diffMarque)/moins(imma_diffMarqueMoinsVendu) vendu
 imma_diffMarque <- as.data.frame(table(immatriculations$marque))
 imma_diffMarque <- imma_diffMarque %>% arrange(Freq)
 imma_diffMarqueMoinsVendu <- imma_diffMarque[0:10,]
@@ -128,6 +127,7 @@ immatriculation_client_group <- immatriculation_client %>% mutate(number = 1) %>
   group_by(puissance, prix, marque, nom) %>% 
   summarise(number = sum(number), sf_celib=sum(sf_celib), sf_divorce=sum(sf_divorce), sf_couple=sum(sf_couple), sf_marie=sum(sf_marie), sf_count=sum(sf_count),  age_1831=sum(age_1831), age_3242=sum(age_3242),age_4359=sum(age_4359), age_6084=sum(age_6084)) 
 
+str(immatriculation_client_group)
 ##
 ####
 
@@ -145,6 +145,7 @@ client_groupBy <- client_join_Cleaned %>% mutate(number = 1) %>% group_by(age, n
 
 client_join_Cleaned_group <- client_join_Cleaned %>% group_by(age, situationFamiliale, nbEnfantsAcharge, marque, puissance, longueur, nbPlaces, nbPortes, couleur, prix) %>% 
   summarise() 
+str(client_join_Cleaned_group)
 
 #Melanger et prendre seulement N lignes
 client_join_Cleaned_group_shuffle <- client_join_Cleaned_group[sample(nrow(client_join_Cleaned_group)),]
@@ -156,12 +157,17 @@ client_join_Cleaned_group_shuffle <- client_join_Cleaned_group_shuffle[0:4000,]
 ####
 ##JSON LITE
 
-write_json(clients, "data_client.json")
+##write_json(clients, "data_client.json")
 write_json(client_groupBy, "data_client_groupby.json")
+#Pour pie chart : Voiture les plus vendus
 write_json(imma_diffMarque, "data_marquevendu.json")
+#Modèles de voitures différentes groupées pour sortir le nombre d'unit vendu pour chaque
 write_json(immaGroup, "imma_groupby.json")
+#Pour parallel  chart : clients regroupés pour sortir les différents modèles achetés par profil différents
 write_json(client_join_Cleaned_group, "client_join_Cleaned_group.json")
+#Pour parallel chart: shuffle pour ne prendre que N lignes
 write_json(client_join_Cleaned_group_shuffle, "client_join_Cleaned_group_shuffle.json")
+#Pour bubble chart : différentes marques de voiture avec les différentes tranches d'age et situation familiale associés
 write_json(immatriculation_client_group, "immatriculation_client_group.json")
 
 ##
